@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, TextInput } from 'react-native';
 import { Audio } from 'expo-av';
 import { firestore, auth } from './firebase';
+import { useNavigation } from '@react-navigation/native';
 
 const Voice = () => {
   const [recording, setRecording] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [tag, setTag] = useState('');
+  const navigation = useNavigation();
 
   const startRecording = async () => {
     try {
@@ -41,39 +44,56 @@ const Voice = () => {
     }
   };
 
+  const playRecording = async () => {
+    console.log('Playing recording..');
+    const { sound } = await recording.createNewLoadedSoundAsync();
+    await sound.playAsync();
+    setIsPlaying(true);
+  };
+
+  const stopPlayback = async () => {
+    console.log('Stopping playback..');
+    setIsPlaying(false);
+    try {
+      await recording.stopAndUnloadAsync();
+    } catch (err) {
+      console.error('Failed to stop playback', err);
+    }
+  };
+
   const handleSave = async () => {
     console.log('Saving recording..');
     const uri = recording.getURI();
     const response = await fetch(uri);
     const blob = await response.blob();
     const filename = uri.split('/').pop();
-  
+
     try {
-      const userDoc = await firestore.collection('users').doc(auth.currentUser.uid).get();
-      const recordingData = {
-        downloadURL: '',
-        userId: auth.currentUser.uid,
-        createdAt: new Date(),
-        tag,
-        username: userDoc.data().username,
-        filename,
-      };
-      
-      // Save the recording metadata to Firestore
-      const recordingRef = await firestore.collection('recordings').add(recordingData);
-      
-      // Upload the recording to Cloud Storage and update the downloadURL
-      const storageRef = firebase.storage().ref(`recordings/${auth.currentUser.uid}/${recordingRef.id}`);
-      const snapshot = await storageRef.put(blob);
-      const downloadURL = await snapshot.ref.getDownloadURL();
-      await firestore.collection('recordings').doc(recordingRef.id).update({ downloadURL });
-      
-      console.log('Recording saved!');
+      const userRef = firestore.collection('users').doc(auth.currentUser.uid);
+      const userDoc = await userRef.get();
+
+      if (userDoc.exists && userDoc.data().username) {
+        const recordingData = {
+          downloadURL: '',
+          userId: auth.currentUser.uid,
+          createdAt: new Date(),
+          tag,
+          username: userDoc.data().username,
+          filename,
+        };
+
+        // Save the recording metadata to Firestore
+        await firestore.collection('recordings').add(recordingData);
+        console.log('Recording saved!');
+        navigation.navigate('Home');
+      } else {
+        console.error('User data not found');
+      }
     } catch (err) {
       console.error('Failed to save recording', err);
     }
   };
-  
+
   useEffect(() => {
     return () => {
       if (recording) {
