@@ -5,6 +5,7 @@
       "bundler": "metro"
     },
     "name": "batchat",
-    "slug": "batchat"
+    "slug": "batchat",
+    "android": {}
   }
 }
