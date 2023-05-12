@@ -5,8 +5,7 @@ import { firebase, auth, firestore } from './firebase';
 import { Audio } from 'expo-av';
 import { Image } from 'react-native';
 import yicon from './assets/yicon.jpg';
-import { useMemo} from 'react';
-
+import { useMemo } from 'react';
 
 const LogInButton = () => {
   const navigation = useNavigation();
@@ -16,7 +15,6 @@ const LogInButton = () => {
     </View>
   );
 };
-
 
 const VoiceButton = ({ addRecording }) => {
   const navigation = useNavigation();
@@ -34,8 +32,6 @@ const VoiceButton = ({ addRecording }) => {
   );
 };
 
-
-
 const SignUpButton = () => {
   const navigation = useNavigation();
 
@@ -46,30 +42,26 @@ const SignUpButton = () => {
   );
 };
 
-
-
 const RecordingsList = ({ recordings }) => {
   const navigation = useNavigation();
 
   const handlePlay = async (downloadURL) => {
     try {
       const { sound } = await Audio.Sound.createAsync({ uri: downloadURL });
-  
+
       sound.setOnPlaybackStatusUpdate((playbackStatus) => {
         if (playbackStatus.didJustFinish) {
           console.log('Sound playback finished');
         }
       });
-  
+
       await sound.playAsync();
       console.log('Playing Sound');
     } catch (error) {
       console.log('Error while playing sound:', error);
     }
   };
-  
-  
-  
+
   const renderRecording = useMemo(() => {
     return ({ item }) => (
       <TouchableOpacity
@@ -81,10 +73,6 @@ const RecordingsList = ({ recordings }) => {
       </TouchableOpacity>
     );
   }, []);
-  
-  
-  
-
 
   return (
     <View style={styles.container}>
@@ -99,23 +87,10 @@ const RecordingsList = ({ recordings }) => {
   );
 };
 
-
-
 const HomeScreen = () => {
   const [user, setUser] = useState(null);
   const [recordings, setRecordings] = useState([]);
-
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) {
-        setUser(user);
-      } else {
-        setUser(null);
-      }
-    });
-
-    return unsubscribe;
-  }, []);
+ 
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -137,29 +112,28 @@ const HomeScreen = () => {
         setRecordings([]);
       }
     });
-  
-    const recordingsRef = firestore.collection('recordings');
-    const query = recordingsRef.orderBy('createdAt', 'desc');
-    const unsubscribeRealtimeUpdates = query.onSnapshot((snapshot) => {
-      const recordingsData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setRecordings(recordingsData);
-      console.log('recordingsData', recordingsData);
-    });
-  
-    return () => {
-      unsubscribe();
-      unsubscribeRealtimeUpdates();
-    };
-  }, []);
-  
-  
-  
 
+   
+
+
+    const query = firestore
+    .collection('recordings')
+    .orderBy('createdAt', 'desc');
   
+  const unsubscribeRealtimeUpdates = query.onSnapshot((snapshot) => {
+    const recordingsData = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    setRecordings(recordingsData);
+    console.log('recordingsData', recordingsData);
+  });
   
+  return () => {
+    unsubscribe();
+    unsubscribeRealtimeUpdates();
+  };
+}, []);
 
   const handleSignOut = async () => {
     try {
@@ -175,10 +149,12 @@ const HomeScreen = () => {
 
   return (
     <View style={styles.container}>
-       <Image source={yicon} style={styles.icon} />
+      <Image source={yicon} style={styles.icon} />
       {user ? (
         <>
-          <Text style={styles.title}>Welcome {user.displayName || user.email.substring(0, user.email.indexOf('@'))}!</Text>
+          <Text style={styles.title}>
+            Welcome {user.displayName || user.email.substring(0, user.email.indexOf('@'))}!
+          </Text>
           <VoiceButton addRecording={addRecording} />
           <RecordingsList recordings={recordings} />
           <View style={styles.buttonContainer}>
@@ -194,15 +170,14 @@ const HomeScreen = () => {
       )}
     </View>
   );
-
 };
 
 export default HomeScreen;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -227,7 +202,6 @@ const styles = StyleSheet.create({
   recordingUsername: {
     fontSize: 12,
     color: 'gray',
-
   },
   icon: {
     width: 120,
@@ -236,6 +210,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 });
+
 
 
 
