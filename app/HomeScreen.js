@@ -5,6 +5,8 @@ import { firebase, auth, firestore } from './firebase';
 import { Audio } from 'expo-av';
 import { Image } from 'react-native';
 import yicon from './assets/yicon.jpg';
+import { useMemo} from 'react';
+
 
 const LogInButton = () => {
   const navigation = useNavigation();
@@ -15,14 +17,14 @@ const LogInButton = () => {
   );
 };
 
-const VoiceButton = () => {
+
+const VoiceButton = ({ addRecording }) => {
   const navigation = useNavigation();
 
-  const handleAddRecording = (recording) => {
-    navigation.setOptions({
-      addRecording: recording,
+  const handleAddRecording = () => {
+    navigation.navigate('Voice', {
+      addRecording: addRecording,
     });
-    navigation.navigate('Voice');
   };
 
   return (
@@ -68,10 +70,8 @@ const RecordingsList = ({ recordings }) => {
   
   
   
-  
-
-  const renderRecording = ({ item }) => {
-    return (
+  const renderRecording = useMemo(() => {
+    return ({ item }) => (
       <TouchableOpacity
         style={styles.recordingContainer}
         onPress={() => handlePlay(item.downloadURL)}
@@ -80,7 +80,10 @@ const RecordingsList = ({ recordings }) => {
         <Text style={styles.recordingUsername}>{item.username}</Text>
       </TouchableOpacity>
     );
-};
+  }, []);
+  
+  
+  
 
 
   return (
@@ -120,8 +123,8 @@ const HomeScreen = () => {
         setUser(user);
         const fetchRecordings = async () => {
           const recordingsRef = firestore.collection('recordings');
-          console.log(recordingsRef)
-          const snapshot = await recordingsRef.get();
+          const query = recordingsRef.orderBy('createdAt', 'desc');
+          const snapshot = await query.get();
           const recordingsData = snapshot.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
@@ -134,8 +137,25 @@ const HomeScreen = () => {
         setRecordings([]);
       }
     });
-    return unsubscribe;
+  
+    const recordingsRef = firestore.collection('recordings');
+    const query = recordingsRef.orderBy('createdAt', 'desc');
+    const unsubscribeRealtimeUpdates = query.onSnapshot((snapshot) => {
+      const recordingsData = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setRecordings(recordingsData);
+      console.log('recordingsData', recordingsData);
+    });
+  
+    return () => {
+      unsubscribe();
+      unsubscribeRealtimeUpdates();
+    };
   }, []);
+  
+  
   
 
   
