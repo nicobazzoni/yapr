@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Button, TouchableOpacity, FlatList } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { firebase, auth, firestore } from './firebase';
+import { firebase, auth, firestore , db} from './firebase';
 import { Audio } from 'expo-av';
 import { Image } from 'react-native';
 import yicon from './assets/yicon.jpg';
@@ -49,6 +49,7 @@ const SignUpButton = () => {
 
 const RecordingsList = ({ recordings }) => {
   const navigation = useNavigation();
+  const [recordinds, setRecordings] = useState([]);
 
   const handlePlay = async (downloadURL) => {
     try {
@@ -67,6 +68,19 @@ const RecordingsList = ({ recordings }) => {
     }
   };
   
+
+  useEffect(() => {
+    // Set up the real-time listener
+    const unsubscribe = db.collection('recordings')
+      .orderBy('createdAt', 'desc')
+      .onSnapshot((snapshot) => {
+        const updatedRecordings = snapshot.docs.map((doc) => doc.data());
+        setRecordings(updatedRecordings);
+      });
+
+    // Clean up the listener on unmount
+    return () => unsubscribe();
+  }, []);
 
   const renderRecording = useMemo(() => {
 

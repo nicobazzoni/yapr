@@ -3,23 +3,19 @@ import { View, Text, Button, StyleSheet, FlatList } from 'react-native';
 import { Audio } from 'expo-av';
 import { firestore, auth } from './firebase';
 import { TouchableOpacity } from 'react-native-gesture-handler';
-import { Ionicons } from '@expo/vector-icons';
-import { Feather } from '@expo/vector-icons'; 
-import { useNavigation } from 'expo-router/src/useNavigation';
 import { FontAwesome } from '@expo/vector-icons';
-import { Octicons } from '@expo/vector-icons'; 
+import { Octicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 
-
-const RecordingDetailsScreen = ({ route, navigation }) => {
+const RecordingDetailsScreen = ({ route }) => {
   const { recordingId } = route.params;
   const [recording, setRecording] = useState(null);
-  const [reply, setReply] = useState(null);
   const [replies, setReplies] = useState([]);
-  const [username, setUsername] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
+  const [reply, setReply] = useState(null);
 
-  const navigate = useNavigation();
+  const [username , setUsername] = useState(null);
+  const navigation = useNavigation();
 
   useEffect(() => {
     const fetchRecording = async () => {
@@ -55,51 +51,50 @@ const RecordingDetailsScreen = ({ route, navigation }) => {
       }
     };
 
-    
-
-    const fetchUsername = async () => {
-      try {
-        const user = auth.currentUser;
-        if (user && user.displayName) {
-          setUsername(user.displayName);
-        }
-      } catch (error) {
-        console.error('Failed to fetch username', error);
-      }
-    };
-
     fetchRecording();
     fetchReplies();
-    fetchUsername();
   }, [recordingId]);
 
-  
-  const handleRecording = async () => {
+  const handlePlayPause = async () => {
     try {
-      // ...
+      if (recording && recording.uri) {
+        const soundObject = new Audio.Sound();
+  
+        await soundObject.loadAsync({ uri: recording.uri });
+        await soundObject.playAsync();
+        console.log('Playing Sound', recording.uri);
+  
+        soundObject.setOnPlaybackStatusUpdate((status) => {
+          if (status.didJustFinish) {
+            soundObject.unloadAsync();
+            setIsPlaying(false);
+          }
+        });
+  
+        setIsPlaying(true);
+      }
+    } catch (error) {
+      console.error('Failed to play recording', error);
+    }
+  };
+  
+  
 
-      if (isRecording) { // Use isRecording state variable
+  const handleStartRecording = async () => {
+    try {
+      console.log('Starting recording..');
+
+      if (reply) {
         console.log('Recording already in progress');
         return;
       }
 
-      if (reply) {
-        console.log('Stopping recording..');
-        await reply.stopAndUnloadAsync();
-        setReply(null);
-        setIsRecording(false); // Update isRecording state
-      } else {
-        console.log('Starting recording..');
-        const recording = new Audio.Recording();
-        await recording.prepareToRecordAsync();
-        await recording.startAsync();
-        setReply(recording);
-        setIsRecording(true); // Update isRecording state
-
-        // ...
-      }
+      const newRecording = new Audio.Recording();
+      await newRecording.prepareToRecordAsync();
+      await newRecording.startAsync();
+      setReply(newRecording);
     } catch (error) {
-      console.error('Failed to handle recording', error);
+      console.error('Failed to start recording', error);
     }
   };
 
@@ -108,188 +103,123 @@ const RecordingDetailsScreen = ({ route, navigation }) => {
       if (reply && reply.isRecording) {
         console.log('Stopping recording..');
         await reply.stopAndUnloadAsync();
-        setIsRecording(false); // Update isRecording state
+        setReply(null);
       }
     } catch (error) {
       console.error('Failed to stop recording', error);
-    } finally {
-      setReply(null);
     }
   };
-  
- 
- 
-  
-  
-  
 
-  useEffect(() => {
-    // Your existing code to fetch recording and replies
-  // Additional code to handle updated state
-    if (!reply) {
-      // Perform any cleanup or reset necessary when reply is null
-      // For example, stopping playback or resetting any playback-related states
-      setIsPlaying(false);
-    }
-  
-    return () => {
-      // Cleanup function to be called when the component unmounts or when the effect is re-triggered
-      // For example, stopping any ongoing recordings or clearing any resources
-      handleStopRecording();
-    };
-  }, [recordingId, reply]);
-  
-  
-  useEffect(() => {
-    return () => {
-      // Clean up the recording when the component unmounts
-      if (reply) {
-        reply.stopAndUnloadAsync();
-      }
-    };
-  }, []);
-  
-  
-  const handleSaveRecording = async () => {
+  const handlePlayReply = async (item) => {
     try {
+      console.log('Playing reply..');
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: item.uri },
+        { shouldPlay: true }
+      );
+      await sound.playAsync();
+    } catch (error) {
+      console.error('Failed to play reply', error);
+    }
+  };
+
+  const handleSaveReply = async () => {
+    try {
+      console.log('Saving reply..');
+      const uri = reply.getURI();
+      const filename = uri.split('/').pop();
+
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
       const user = auth.currentUser;
-      if (user && reply) {
-        console.log('Saving reply recording...');
-        const recordingUri = reply.getURI();
-        const filename = recordingUri.split('/').pop();
-  
-        // Upload the reply recording to Firebase Storage
-        const storageChildRef = storage.ref().child(`replies/${filename}`);
-        const response = await fetch(recordingUri);
-        const blob = await response.blob();
-        await storageChildRef.put(blob);
-  
-        // Get the download URL of the uploaded reply recording
-        const downloadURL = await storageChildRef.getDownloadURL();
-  
-        // Create a new reply document in Firestore
-        const recordingRef = firestore.collection('recordings').doc(recordingId);
-        const repliesRef = recordingRef.collection('replies');
+      if (user && user.displayName) {
         const replyData = {
-          content: 'New reply recording',
-          sender: user.displayName || user.email,
-          timestamp: new Date().getTime(),
-          downloadURL: downloadURL,
+          uri,
+          filename,
+          sender: user.displayName,
         };
-        await repliesRef.add(replyData);
-  
-        console.log('Reply recording saved successfully');
+
+        const storageRef = storageRef.child(`recordings/${recordingId}/${filename}`);
+        await storageRef.put(blob);
+
+        const downloadURL = await storageRef.getDownloadURL();
+
+        await firestore
+          .collection('recordings')
+          .doc(recordingId)
+          .collection('replies')
+          .add({
+            ...replyData,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+
+        console.log('Reply saved successfully!');
+        setReply(null);
+      } else {
+        console.log('User not logged in or display name not available.');
       }
     } catch (error) {
-      console.error('Failed to save reply recording', error);
+      console.error('Failed to save reply', error);
     }
   };
-  
-  
 
-  const handlePausePlayback = async () => {
-    try {
-      if (isPlaying && recording) {
-        if (recording.getStatusAsync().isPlaying) {
-          console.log('Pausing playback..');
-          setIsPlaying(false);
-          await recording.pauseAsync();
-        } else {
-          console.log('Resuming playback..');
-          setIsPlaying(true);
-          await recording.playAsync();
-        }
-      }
-    } catch (error) {
-      console.error('Failed to pause playback', error);
-    }
-  };
-  
-
-  const handlePlayRecording = async () => {
-    try {
-      console.log('Playing recording...', recording.downloadURL);
-
-      if (reply && !reply.isRecording) { // Check if recording has finished
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: recording.downloadURL },
-          { shouldPlay: true }
-        );
-        await sound.playAsync();
-      }
-    } catch (error) {
-      console.error('Failed to play recording', error);
-    }
-  };
-      
-  
-  // Rest of the code...
-  const renderReply = ({ item }) => (
-    <View style={styles.replyContainer}>
-      <View style={styles.replyContentContainer}>
-        <Text style={styles.replyContent}>{item.content}</Text>
-        <Text style={styles.replySender}>Sent by: {item.sender}</Text>
-      </View>
-      <TouchableOpacity onPress={() => handlePlayReply(item)}>
-        <FontAwesome name="play-circle" size={24} color="blue" />
-      </TouchableOpacity>
-    </View>
-  );
-  
   const backHome = () => {
     navigation.navigate('Home');
-};
+    };
+
+
+
+
 
   return (
     <View style={styles.container}>
-          {recording && (
-    <View>
-      <Text style={styles.recordingTag}>{recording.tag}</Text>
-      <Text style={styles.recordingUsername}>-{recording.username}</Text>
-      {/* Render other details of the recording */}
-      <View style={styles.buttonPage}>
       {recording && (
-        <TouchableOpacity style={styles.button} onPress={handlePlayRecording}>
-          <Feather name="play" size={24} color="black" />
-        </TouchableOpacity>
+        <View>
+          <Text style={styles.recordingTag}>{recording.tag}</Text>
+          <Text style={styles.recordingUsername}>-{recording.username}</Text>
+          {/* Render other details of the recording */}
+          <View style={styles.buttonPage}>
+            <TouchableOpacity style={styles.button} onPress={handlePlayPause}>
+              <FontAwesome name={isPlaying ? 'pause-circle' : 'play-circle'} size={24} color="black" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.button} onPress={backHome}>
+              <Octicons name="home" size={24} color="black" />
+            </TouchableOpacity>
+          </View>
+        </View>
       )}
-      <TouchableOpacity style={styles.button} onPress={backHome}>
-        <Octicons name="home" size={24} color="black" />
-      </TouchableOpacity>
-    </View>
-        
-     
-    </View>
-  )}
-    {replies.length > 0 && (
-       <FlatList
-       data={replies}
-       renderItem={renderReply}
-       keyExtractor={(item) => item.id}
-       extraData={handlePlayReply} // Add this line
-     />
+      {replies.length > 0 && (
+        <FlatList
+          data={replies}
+          renderItem={({ item }) => (
+            <View style={styles.replyContainer}>
+              <View style={styles.replyContentContainer}>
+                <Text style={styles.replyContent}>{item.content}</Text>
+                <Text style={styles.replySender}>Sent by: {item.sender}</Text>
+              </View>
+              <TouchableOpacity onPress={() => handlePlayReply(item)}>
+                <FontAwesome name="play-circle" size={24} color="blue" />
+              </TouchableOpacity>
+            </View>
+          )}
+          keyExtractor={(item) => item.id}
+        />
       )}
       <Text>{username}</Text>
-      <Button
-        title={reply ? 'Stop Recording' : 'Start Recording'}
-        onPress={handleRecording}
-      />
-      <Button
-        title={isPlaying ? 'Pause Playback' : 'Resume Playback'}
-        onPress={handlePausePlayback}
-      />
-      <Button
-        title="Stop Playback"
-        onPress={handleStopRecording}
-      />
-      <Button
-        title="Save Recording"
-        onPress={handleSaveRecording}
-      />
-     
+      {!reply ? (
+        <Button title="Record Reply" onPress={handleStartRecording} />
+      ) : (
+        <View>
+          <Button title="Stop Recording" onPress={handleStopRecording} />
+          <Button title="Save Reply" onPress={handleSaveReply} />
+        </View>
+      )}
     </View>
   );
 };
+
+export default RecordingDetailsScreen;
 
 const styles = StyleSheet.create({
   container: {
@@ -302,38 +232,24 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     marginBottom: 10,
   },
+  replyContentContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
   replyContent: {
     fontSize: 16,
+    marginRight: 10,
   },
   replySender: {
     fontSize: 12,
     color: '#888',
   },
-    recordingTag: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        marginBottom: 10,
-        },
-    recordingUsername: {
-        fontSize: 16,
-        marginBottom: 10,
-        },
-
-  buttonPage: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 20,
-    },
-    button: {
-        padding: 10,
-        borderRadius: 10,
-        backgroundColor: '#eee',
-      },
+  recordingTag: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+ 
 });
 
-export default RecordingDetailsScreen;
-
-  
-  
