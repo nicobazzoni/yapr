@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { auth } from './firebase';
+import yicon from './assets/yicon.jpg';
+import { Image } from 'react-native';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
@@ -17,6 +19,7 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      <Image source={yicon} style={styles.icon} />
       <Text style={styles.title}>Log In</Text>
       <TextInput
         style={styles.input}
@@ -65,8 +68,14 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#ff0000',
+    backgroundColor: '#1E90FF',
     borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#1E90FF',
+    marginBottom: 20,
+    color: '#000000'
+    //make text black instead of white
+   
   },
   buttonText: {
     color: '#fff',
@@ -77,4 +86,10 @@ const styles = StyleSheet.create({
     color: '#ff0000',
     marginBottom: 20,
   },
+  icon: {
+    width: 40,
+    height: 40,
+    marginBottom: 20,
+  },
+
 });

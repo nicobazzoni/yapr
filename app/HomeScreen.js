@@ -6,6 +6,7 @@ import { Audio } from 'expo-av';
 import { Image } from 'react-native';
 import yicon from './assets/yicon.jpg';
 import { useMemo } from 'react';
+import VoiceReply from './VoiceReply';
 
 const LogInButton = () => {
   const navigation = useNavigation();
@@ -70,9 +71,16 @@ const RecordingsList = ({ recordings }) => {
       >
         <Text style={styles.recordingTag}>{item.tag}</Text>
         <Text style={styles.recordingUsername}>{item.username}</Text>
+        <Button
+          title="Reply"
+          onPress={() => navigation.navigate('RecordingDetails', { recordingId: item.id })}
+          titleStyle={styles.replyButtonTitle} // Apply custom style to the button title
+        />
       </TouchableOpacity>
     );
   }, []);
+  
+  
 
   return (
     <View style={styles.container}>
@@ -135,6 +143,41 @@ const HomeScreen = () => {
   };
 }, []);
 
+useEffect(() => {
+  const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+    if (user) {
+      setUser(user);
+      subscribeToRecordings();
+    } else {
+      setUser(null);
+      setRecordings([]);
+    }
+  });
+
+  return () => {
+    unsubscribeAuth();
+  };
+}, []);
+
+const subscribeToRecordings = () => {
+  const query = firestore
+    .collection('recordings')
+    .orderBy('createdAt', 'desc');
+
+  const unsubscribeRealtimeUpdates = query.onSnapshot((snapshot) => {
+    const newRecordings = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    setRecordings(newRecordings);
+  });
+
+  return () => {
+    unsubscribeRealtimeUpdates();
+  };
+};
+
+
   const handleSignOut = async () => {
     try {
       await auth.signOut();
@@ -157,6 +200,7 @@ const HomeScreen = () => {
           </Text>
           <VoiceButton addRecording={addRecording} />
           <RecordingsList recordings={recordings} />
+         
           <View style={styles.buttonContainer}>
             <Button title="Sign Out" onPress={handleSignOut} />
           </View>
@@ -188,8 +232,8 @@ const styles = StyleSheet.create({
   recordingContainer: {
     marginBottom: 20,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'gray',
+    borderWidth: 3,
+    borderColor: 'whitesmoke',
     backgroundColor: '#fff',
     padding: 16,
     width: '100%',
@@ -204,11 +248,15 @@ const styles = StyleSheet.create({
     color: 'gray',
   },
   icon: {
-    width: 120,
-    height: 120,
+    width: 50,
+    height: 50,
     resizeMode: 'contain',
     marginBottom: 20,
   },
+  replyButtonTitle: {
+    fontSize: 6, // Change the font size to your desired value
+  },
+
 });
 
 

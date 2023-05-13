@@ -110,6 +110,11 @@ const Voice = () => {
       setTag('');
     }
   };
+
+  const backHome = () => {
+    navigation.navigate('Home');
+  };
+
   
   
   
@@ -128,6 +133,9 @@ const Voice = () => {
       <TouchableOpacity style={styles.button} onPress={isRecording ? stopRecording : startRecording}>
         <Text style={styles.buttonText}>{isRecording ? 'Stop' : 'Record'}</Text>
       </TouchableOpacity>
+      <TouchableOpacity style={styles.button} onPress={backHome}> 
+            <Text style={styles.buttonText}>Back</Text>
+          </TouchableOpacity>
       {recording && (
         <>
           <TouchableOpacity style={styles.button} onPress={isPlaying ? pausePlayback : playRecording}>
@@ -144,6 +152,7 @@ const Voice = () => {
           <TouchableOpacity style={styles.button} onPress={handleSave}>
             <Text style={styles.buttonText}>Save</Text>
           </TouchableOpacity>
+         
         </>
       )}
     </View>
@@ -197,7 +206,6 @@ const styles = StyleSheet.create({
     padding: 10,
   },
 });
-
 
 
 
