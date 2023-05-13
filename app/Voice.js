@@ -1,16 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, TextInput } from 'react-native';
 import { Audio } from 'expo-av';
-import { firestore, auth, storageRef, db } from './firebase';
+import { db, auth } from './firebase';
+import { ref, uploadBytes } from 'firebase/storage';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/auth';
+import 'firebase/compat/firestore';
+import 'firebase/compat/storage';
 import { useNavigation } from '@react-navigation/native';
 
 const Voice = () => {
   const [recording, setRecording] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [tag, setTag] = useState('');
+  const [isPlaying, setIsPlaying] = useState(false);
+
   const navigation = useNavigation();
- 
 
   const startRecording = async () => {
     try {
@@ -20,13 +25,7 @@ const Voice = () => {
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
-  
-      if (recording) {
-        console.log('Stopping previous recording..');
-        await recording.stopAndUnloadAsync();
-      }
-  
-      console.log('Starting new recording..');
+      console.log('Starting recording..');
       const newRecording = new Audio.Recording();
       await newRecording.prepareToRecordAsync(Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY);
       await newRecording.startAsync();
@@ -36,34 +35,16 @@ const Voice = () => {
       console.error('Failed to start recording', err);
     }
   };
-  
+
   const stopRecording = async () => {
     console.log('Stopping recording..');
     setIsRecording(false);
-    try {
-      if (recording && recording.isRecording) {
-        await recording.stopAndUnloadAsync();
-      }
-    } catch (error) {
-      console.error('Failed to stop recording', error);
-    }
-  };
-
-  const playRecording = async () => {
-    console.log('Playing recording..');
-    const { sound } = await recording.createNewLoadedSoundAsync();
-    await sound.playAsync();
-    setIsPlaying(true);
-  };
-
-  const pausePlayback = async () => {
-    console.log('Pausing playback..');
-    setIsPlaying(false);
     try {
       await recording.stopAndUnloadAsync();
     } catch (err) {
       console.error('Failed to stop recording', err);
     }
+    setIsPlaying(true);
   };
 
   const handleSave = async () => {
@@ -75,48 +56,52 @@ const Voice = () => {
       const response = await fetch(uri);
       const blob = await response.blob();
   
-      const userRef = firestore.collection('users').doc(auth.currentUser.uid);
+      const userRef = db.collection('users').doc(auth.currentUser.uid);
       const userDoc = await userRef.get();
   
       if (userDoc.exists && userDoc.data().username) {
-        // Upload the recording file to Firebase Storage
-        const storageChildRef = storageRef.child(`recordings/${filename}`);
-        const uploadTask = storageChildRef.put(blob);
-        await uploadTask;
-  
-        // Get the download URL of the uploaded file
-        const downloadURL = await storageChildRef.getDownloadURL();
-  
         const recordingData = {
-          downloadURL,
-          userId: auth.currentUser.uid,
-          createdAt: new Date(),
-          tag,
-          username: userDoc.data().username,
+          uri,
           filename,
+          tag,
         };
   
+        // Upload the recording blob to Firebase Storage
+        const storageRef = firebase.storage().ref(`recordings/${auth.currentUser.uid}/${filename}`);
+        await storageRef.put(blob);
+  
+        // Get the download URL of the uploaded recording
+        const downloadURL = await storageRef.getDownloadURL();
+  
         // Save the recording metadata to Firestore
-        await db.collection('recordings').add(recordingData);
-        console.log('Recording saved!');
+        const recordingRef = db.collection('recordings').doc();
+        await recordingRef.set({
+          ...recordingData,
+          downloadURL,
+          userId: auth.currentUser.uid,
+          createdAt: firebase.firestore.Timestamp.now(),
+          recordingId: recordingRef.id,
+          username: userDoc.data().username,
+        });
+  
+        console.log('Recording saved successfully!');
+  
+        // Refresh the home page after saving
         navigation.navigate('Home');
       } else {
-        console.error('User data not found');
+        console.log('User document not found or username not available.');
       }
-    } catch (err) {
-      console.error('Failed to save recording', err);
-    } finally {
-      setRecording(null);
-      setIsPlaying(false);
-      setTag('');
+    } catch (error) {
+      console.error('Failed to save recording:', error);
     }
   };
-
-  const backHome = () => {
-    navigation.navigate('Home');
-  };
-
   
+  
+
+
+
+
+
   
   
 
@@ -128,20 +113,32 @@ const Voice = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const playbackSound = async () => {
+      console.log('Playback sound triggered');
+      if (isPlaying && recording) {
+        console.log('Playing recording...');
+        try {
+          const { sound } = await recording.createNewLoadedSoundAsync();
+          await sound.playAsync();
+          setIsPlaying(false);
+          console.log('Recording playback completed.');
+        } catch (error) {
+          console.error('Failed to play recording:', error);
+        }
+      }
+    };
+    playbackSound();
+  }, [isPlaying]);
+  
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Record your voice</Text>
       <TouchableOpacity style={styles.button} onPress={isRecording ? stopRecording : startRecording}>
         <Text style={styles.buttonText}>{isRecording ? 'Stop' : 'Record'}</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.button} onPress={backHome}> 
-            <Text style={styles.buttonText}>Back</Text>
-          </TouchableOpacity>
       {recording && (
         <>
-          <TouchableOpacity style={styles.button} onPress={isPlaying ? pausePlayback : playRecording}>
-            <Text style={styles.buttonText}>{isPlaying ? 'Pause' : 'Play'}</Text>
-          </TouchableOpacity>
           <View style={styles.tagContainer}>
             <Text style={styles.tagLabel}>Tag:</Text>
             <TextInput
@@ -153,18 +150,13 @@ const Voice = () => {
           <TouchableOpacity style={styles.button} onPress={handleSave}>
             <Text style={styles.buttonText}>Save</Text>
           </TouchableOpacity>
-         
         </>
       )}
     </View>
   );
 };
 
-
-
 export default Voice;
-
-
 
 const styles = StyleSheet.create({
   container: {
@@ -207,6 +199,5 @@ const styles = StyleSheet.create({
     padding: 10,
   },
 });
-
 
 

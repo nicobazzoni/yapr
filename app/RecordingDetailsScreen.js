@@ -17,6 +17,7 @@ const RecordingDetailsScreen = ({ route, navigation }) => {
   const [replies, setReplies] = useState([]);
   const [username, setUsername] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
 
   const navigate = useNavigation();
 
@@ -72,16 +73,12 @@ const RecordingDetailsScreen = ({ route, navigation }) => {
     fetchUsername();
   }, [recordingId]);
 
+  
   const handleRecording = async () => {
     try {
-      console.log('Requesting permissions..');
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
+      // ...
 
-      if (reply && reply.isRecording) {
+      if (isRecording) { // Use isRecording state variable
         console.log('Recording already in progress');
         return;
       }
@@ -90,26 +87,40 @@ const RecordingDetailsScreen = ({ route, navigation }) => {
         console.log('Stopping recording..');
         await reply.stopAndUnloadAsync();
         setReply(null);
+        setIsRecording(false); // Update isRecording state
       } else {
         console.log('Starting recording..');
         const recording = new Audio.Recording();
-        await recording.prepareToRecordAsync(Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY);
+        await recording.prepareToRecordAsync();
         await recording.startAsync();
         setReply(recording);
+        setIsRecording(true); // Update isRecording state
+
+        // ...
       }
     } catch (error) {
       console.error('Failed to handle recording', error);
     }
   };
+
   const handleStopRecording = async () => {
     try {
       if (reply && reply.isRecording) {
+        console.log('Stopping recording..');
         await reply.stopAndUnloadAsync();
+        setIsRecording(false); // Update isRecording state
       }
     } catch (error) {
       console.error('Failed to stop recording', error);
+    } finally {
+      setReply(null);
     }
   };
+  
+ 
+ 
+  
+  
   
 
   useEffect(() => {
@@ -142,24 +153,38 @@ const RecordingDetailsScreen = ({ route, navigation }) => {
   const handleSaveRecording = async () => {
     try {
       const user = auth.currentUser;
-      if (user) {
+      if (user && reply) {
+        console.log('Saving reply recording...');
+        const recordingUri = reply.getURI();
+        const filename = recordingUri.split('/').pop();
+  
+        // Upload the reply recording to Firebase Storage
+        const storageChildRef = storage.ref().child(`replies/${filename}`);
+        const response = await fetch(recordingUri);
+        const blob = await response.blob();
+        await storageChildRef.put(blob);
+  
+        // Get the download URL of the uploaded reply recording
+        const downloadURL = await storageChildRef.getDownloadURL();
+  
+        // Create a new reply document in Firestore
         const recordingRef = firestore.collection('recordings').doc(recordingId);
         const repliesRef = recordingRef.collection('replies');
-  
         const replyData = {
-          content: 'New reply recording', // Update this with the content of the reply recording
-          sender: user.displayName || user.email, // Update this with the sender information
-          timestamp: new Date().getTime(), // Add a timestamp to the reply
-          downloadURL: 'url-to-reply-recording', // Update this with the download URL of the reply recording
+          content: 'New reply recording',
+          sender: user.displayName || user.email,
+          timestamp: new Date().getTime(),
+          downloadURL: downloadURL,
         };
-  
         await repliesRef.add(replyData);
+  
         console.log('Reply recording saved successfully');
       }
     } catch (error) {
       console.error('Failed to save reply recording', error);
     }
   };
+  
   
 
   const handlePausePlayback = async () => {
@@ -181,31 +206,21 @@ const RecordingDetailsScreen = ({ route, navigation }) => {
   };
   
 
-    const handlePlayRecording = async () => {
-        try {
-          console.log('Playing recording...', recording.downloadURL);
-          const { sound } = await Audio.Sound.createAsync(
-            { uri: recording.downloadURL },
-            { shouldPlay: true }
-          );
-          await sound.playAsync();
-        } catch (error) {
-          console.error('Failed to play recording', error);
-        }
-      };
+  const handlePlayRecording = async () => {
+    try {
+      console.log('Playing recording...', recording.downloadURL);
 
-      const handlePlayReply = async (replyItem) => {
-        try {
-          console.log('Playing reply recording...');
-          const { sound } = await Audio.Sound.createAsync(
-            { uri: replyItem.downloadURL },
-            { shouldPlay: true }
-          );
-          await sound.playAsync();
-        } catch (error) {
-          console.error('Failed to play reply recording', error);
-        }
-      };
+      if (reply && !reply.isRecording) { // Check if recording has finished
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: recording.downloadURL },
+          { shouldPlay: true }
+        );
+        await sound.playAsync();
+      }
+    } catch (error) {
+      console.error('Failed to play recording', error);
+    }
+  };
       
   
   // Rest of the code...
