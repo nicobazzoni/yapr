@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
 import { FontAwesome } from '@expo/vector-icons'; 
 
+
 const LogInButton = () => {
   const navigation = useNavigation();
   return (
@@ -80,11 +81,11 @@ const RecordingsList = ({ recordings }) => {
         
         
         <TouchableOpacity
-        style={styles.replyButtonContainer}
-         onPress={() => navigation.navigate('RecordingDetails', { recordingId: item.id })}
-          >
-         <FontAwesome  name="mail-reply" size={10} color="lightblue" style={{bottom: 0, right: 0}} />
-        </TouchableOpacity>
+      style={styles.replyButtonContainer}
+      onPress={() => navigation.navigate('RecordingDetails', { recordingId: item.id })}
+    >
+      <FontAwesome name="reply" size={10} color="lightblue" style={{ bottom: 0, right: 0 }} />
+    </TouchableOpacity>
       </TouchableOpacity>
     );
   }, []);

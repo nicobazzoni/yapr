@@ -37,14 +37,15 @@ const Voice = () => {
     }
   };
   
-
   const stopRecording = async () => {
     console.log('Stopping recording..');
     setIsRecording(false);
     try {
-      await recording.stopAndUnloadAsync();
-    } catch (err) {
-      console.error('Failed to stop recording', err);
+      if (recording && recording.isRecording) {
+        await recording.stopAndUnloadAsync();
+      }
+    } catch (error) {
+      console.error('Failed to stop recording', error);
     }
   };
 

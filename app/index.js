@@ -18,7 +18,9 @@ export default function App() {
         <Stack.Screen name="SignUp" component={SignUpScreen} />
         <Stack.Screen name="LogIn" component={LoginScreen} />
         <Stack.Screen name="Voice" component={Voice} />
-        <Stack.Screen name="RecordingDetails" component={RecordingDetailsScreen} />
+        <Stack.Screen name="RecordingDetails" component={RecordingDetailsScreen}   options={({ route }) => ({
+    recordingId: route.params.recordingId,
+  })} />
       </Stack.Navigator>
     </NavigationContainer>
   );
