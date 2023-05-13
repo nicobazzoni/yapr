@@ -10,10 +10,14 @@ export default function LoginScreen({ navigation }) {
   const [error, setError] = useState('');
 
   const handleLogin = () => {
+    setError(''); // Clear the error state before logging in
+
     auth
       .signInWithEmailAndPassword(email, password) 
-      .then (console.log(email))
-      .then(() => navigation.navigate('Home'))
+      .then(() => {
+        console.log(email);
+        navigation.navigate('Home');
+      })
       .catch((error) => setError(error.message));
   };
 

@@ -7,6 +7,9 @@ import { Image } from 'react-native';
 import yicon from './assets/yicon.jpg';
 import { useMemo } from 'react';
 import VoiceReply from './VoiceReply';
+import { Ionicons } from '@expo/vector-icons';
+import { useFonts } from 'expo-font';
+import { FontAwesome } from '@expo/vector-icons'; 
 
 const LogInButton = () => {
   const navigation = useNavigation();
@@ -62,8 +65,11 @@ const RecordingsList = ({ recordings }) => {
       console.log('Error while playing sound:', error);
     }
   };
+  
 
   const renderRecording = useMemo(() => {
+
+    
     return ({ item }) => (
       <TouchableOpacity
         style={styles.recordingContainer}
@@ -71,11 +77,14 @@ const RecordingsList = ({ recordings }) => {
       >
         <Text style={styles.recordingTag}>{item.tag}</Text>
         <Text style={styles.recordingUsername}>{item.username}</Text>
-        <Button
-          title="Reply"
-          onPress={() => navigation.navigate('RecordingDetails', { recordingId: item.id })}
-          titleStyle={styles.replyButtonTitle} // Apply custom style to the button title
-        />
+        
+        
+        <TouchableOpacity
+        style={styles.replyButtonContainer}
+         onPress={() => navigation.navigate('RecordingDetails', { recordingId: item.id })}
+          >
+         <FontAwesome  name="mail-reply" size={10} color="lightblue" style={{bottom: 0, right: 0}} />
+        </TouchableOpacity>
       </TouchableOpacity>
     );
   }, []);
@@ -100,6 +109,7 @@ const HomeScreen = () => {
   const [recordings, setRecordings] = useState([]);
  
 
+  
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
@@ -234,9 +244,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 3,
     borderColor: 'whitesmoke',
+    borderStyle: 'solid',
     backgroundColor: '#fff',
     padding: 16,
     width: '100%',
+ 
   },
   recordingTag: {
     fontSize: 20,
@@ -254,8 +266,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   replyButtonTitle: {
-    fontSize: 6, // Change the font size to your desired value
+    fontSize: 12, // Change the font size to your desired value
   },
+  replyButtonContainer: {
+    position: 'absolute',
+    bottom: 1,
+    right: 10,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    padding: 10,
+  },
+
 
 });
 
