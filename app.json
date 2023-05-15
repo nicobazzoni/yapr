@@ -4,10 +4,10 @@
     "slug": "batchat",
     "android": {
       "permissions": [
-        "CAMERA",
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS"
       ]
     }
   }
 }
+

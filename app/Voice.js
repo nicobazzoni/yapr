@@ -97,15 +97,7 @@ const Voice = () => {
   };
   
   
-
-
-
-
-
-  
-  
-
-  useEffect(() => {
+   useEffect(() => {
     return () => {
       if (recording) {
         recording.stopAndUnloadAsync();

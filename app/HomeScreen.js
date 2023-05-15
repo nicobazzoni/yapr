@@ -50,23 +50,33 @@ const SignUpButton = () => {
 const RecordingsList = ({ recordings }) => {
   const navigation = useNavigation();
   const [recordinds, setRecordings] = useState([]);
+  const [recordingLengths, setRecordingLengths] = useState({});
 
   const handlePlay = async (downloadURL) => {
     try {
       const { sound } = await Audio.Sound.createAsync({ uri: downloadURL });
-
+  
+      const { durationMillis } = await sound.getStatusAsync();
+      const durationSeconds = Math.floor(durationMillis / 1000);
+  
       sound.setOnPlaybackStatusUpdate((playbackStatus) => {
         if (playbackStatus.didJustFinish) {
           console.log('Sound playback finished');
         }
       });
-
+  
       await sound.playAsync();
       console.log('Playing Sound');
+  
+      setRecordingLengths((prevRecordingLengths) => ({
+        ...prevRecordingLengths,
+        [downloadURL]: durationSeconds,
+      }));
     } catch (error) {
       console.log('Error while playing sound:', error);
     }
   };
+  
   
 
   useEffect(() => {
@@ -82,6 +92,18 @@ const RecordingsList = ({ recordings }) => {
     return () => unsubscribe();
   }, []);
 
+  const deleteRecording = async (recordingId) => {
+    if (user.uid !== recording.userId) {
+    try {
+      await db.collection('recordings').doc(recordingId).delete();
+    } catch (error) {
+      console.log('Error while deleting recording', error);
+    }
+  };
+  };
+
+
+
   const renderRecording = useMemo(() => {
 
     
@@ -92,6 +114,7 @@ const RecordingsList = ({ recordings }) => {
       >
         <Text style={styles.recordingTag}>{item.tag}</Text>
         <Text style={styles.recordingUsername}>{item.username}</Text>
+        <Text style={styles.recordingLength}>{recordingLengths[item.downloadURL]} seconds</Text>
         
         
         <TouchableOpacity
@@ -122,67 +145,36 @@ const RecordingsList = ({ recordings }) => {
 const HomeScreen = () => {
   const [user, setUser] = useState(null);
   const [recordings, setRecordings] = useState([]);
- 
+  const [recordingLengths, setRecordingLengths] = useState({});
 
-  
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         setUser(user);
-        const fetchRecordings = async () => {
-          const recordingsRef = firestore.collection('recordings');
-          const query = recordingsRef.orderBy('createdAt', 'desc');
-          const snapshot = await query.get();
+        const query = firestore.collection('recordings').orderBy('createdAt', 'desc');
+        const unsubscribeRealtimeUpdates = query.onSnapshot((snapshot) => {
           const recordingsData = snapshot.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
           }));
           setRecordings(recordingsData);
+        });
+
+        return () => {
+          unsubscribeRealtimeUpdates();
         };
-        fetchRecordings();
       } else {
         setUser(null);
         setRecordings([]);
       }
     });
 
-   
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
 
-    const query = firestore
-    .collection('recordings')
-    .orderBy('createdAt', 'desc');
-  
-  const unsubscribeRealtimeUpdates = query.onSnapshot((snapshot) => {
-    const recordingsData = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    setRecordings(recordingsData);
-    console.log('recordingsData', recordingsData);
-  });
-  
-  return () => {
-    unsubscribe();
-    unsubscribeRealtimeUpdates();
-  };
-}, []);
-
-useEffect(() => {
-  const unsubscribeAuth = auth.onAuthStateChanged((user) => {
-    if (user) {
-      setUser(user);
-      subscribeToRecordings();
-    } else {
-      setUser(null);
-      setRecordings([]);
-    }
-  });
-
-  return () => {
-    unsubscribeAuth();
-  };
-}, []);
 
 const subscribeToRecordings = () => {
   const query = firestore
@@ -224,8 +216,7 @@ const subscribeToRecordings = () => {
             Welcome {user.displayName || user.email.substring(0, user.email.indexOf('@'))}!
           </Text>
           <VoiceButton addRecording={addRecording} />
-          <RecordingsList recordings={recordings} />
-         
+          <RecordingsList recordings={recordings} recordingLengths={recordingLengths} />
           <View style={styles.buttonContainer}>
             <Button title="Sign Out" onPress={handleSignOut} />
           </View>
@@ -240,6 +231,8 @@ const subscribeToRecordings = () => {
     </View>
   );
 };
+
+
 
 export default HomeScreen;
 
@@ -291,6 +284,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     padding: 10,
   },
+  recordingLength: {
+    fontSize: 12,
+    color: 'gray',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 20,
+  },
+  
 
 
 });

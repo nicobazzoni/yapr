@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Button, StyleSheet, FlatList } from 'react-native';
 import { Audio } from 'expo-av';
 import { firestore, auth } from './firebase';
@@ -13,9 +13,11 @@ const RecordingDetailsScreen = ({ route }) => {
   const [replies, setReplies] = useState([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [reply, setReply] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
 
   const [username , setUsername] = useState(null);
   const navigation = useNavigation();
+  const replyRef = useRef(null);
 
   useEffect(() => {
     const fetchRecording = async () => {
@@ -32,7 +34,7 @@ const RecordingDetailsScreen = ({ route }) => {
         console.error('Failed to fetch recording', error);
       }
     };
-
+  
     const fetchReplies = async () => {
       try {
         const repliesRef = firestore
@@ -50,10 +52,20 @@ const RecordingDetailsScreen = ({ route }) => {
         console.error('Failed to fetch replies', error);
       }
     };
-
+  
     fetchRecording();
     fetchReplies();
-  }, [recordingId]);
+
+    const unsubscribe = navigation.addListener('focus', () => {
+        fetchRecording();
+        fetchReplies();
+    });
+
+    return unsubscribe;
+    }, [recordingId, navigation]);
+
+
+  
 
   const handlePlayPause = async () => {
     try {
@@ -79,36 +91,64 @@ const RecordingDetailsScreen = ({ route }) => {
   };
   
   
-
+ 
   const handleStartRecording = async () => {
     try {
       console.log('Starting recording..');
-
+  
       if (reply) {
         console.log('Recording already in progress');
         return;
       }
-
+  
+      if (recording && recording.sound) {
+        console.log('Stopping previous recording..');
+        await recording.sound.stopAsync(); // Stop the previous recording if it's still active
+        await recording.sound.unloadAsync(); // Unload the previous recording
+      }
+  
+      await Audio.requestPermissionsAsync(); // Request audio recording permissions
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+  
       const newRecording = new Audio.Recording();
-      await newRecording.prepareToRecordAsync();
+      await newRecording.prepareToRecordAsync(Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY);
       await newRecording.startAsync();
       setReply(newRecording);
+      setIsRecording(true);
     } catch (error) {
       console.error('Failed to start recording', error);
     }
   };
+  
+  
 
+  
+  
+  
+  
+  
+  
   const handleStopRecording = async () => {
     try {
       if (reply && reply.isRecording) {
         console.log('Stopping recording..');
         await reply.stopAndUnloadAsync();
-        setReply(null);
       }
     } catch (error) {
       console.error('Failed to stop recording', error);
+    } finally {
+      setReply(null);
+      setIsRecording(false);
     }
   };
+  
+  
+  
+  
+  
 
   const handlePlayReply = async (item) => {
     try {
@@ -122,47 +162,67 @@ const RecordingDetailsScreen = ({ route }) => {
       console.error('Failed to play reply', error);
     }
   };
+  
 
   const handleSaveReply = async () => {
+    console.log('Saving recording..');
+    const uri = recording.uri;
+    const filename = uri.split('/').pop();
+  
     try {
-      console.log('Saving reply..');
-      const uri = reply.getURI();
-      const filename = uri.split('/').pop();
-
       const response = await fetch(uri);
       const blob = await response.blob();
-
-      const user = auth.currentUser;
-      if (user && user.displayName) {
-        const replyData = {
+  
+      const userRef = db.collection('users').doc(auth.currentUser.uid);
+      const userDoc = await userRef.get();
+  
+      if (userDoc.exists && userDoc.data().username) {
+        const recordingData = {
           uri,
           filename,
-          sender: user.displayName,
+          tag,
         };
-
-        const storageRef = storageRef.child(`recordings/${recordingId}/${filename}`);
+  
+        // Upload the recording blob to Firebase Storage
+        const storageRef = firebase.storage().ref(`recordings/${auth.currentUser.uid}/${filename}`);
         await storageRef.put(blob);
-
+  
+        // Get the download URL of the uploaded recording
         const downloadURL = await storageRef.getDownloadURL();
-
-        await firestore
-          .collection('recordings')
-          .doc(recordingId)
-          .collection('replies')
-          .add({
-            ...replyData,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-          });
-
-        console.log('Reply saved successfully!');
-        setReply(null);
+  
+        // Save the recording metadata to Firestore
+        const recordingRef = db.collection('recordings').doc();
+        await recordingRef.set({
+          ...recordingData,
+          downloadURL,
+          userId: auth.currentUser.uid,
+          createdAt: firebase.firestore.Timestamp.now(),
+          recordingId: recordingRef.id,
+          username: userDoc.data().username,
+          replies: [], // Initialize the replies array
+        });
+  
+        console.log('Recording saved successfully!');
+  
+        // Play the recording after saving
+        try {
+          const { sound } = await Audio.Sound.createAsync({ uri: downloadURL });
+          await sound.playAsync();
+        } catch (error) {
+          console.error('Failed to play recording:', error);
+        }
+  
+        // Refresh the home page after saving
+        navigation.navigate('Home');
       } else {
-        console.log('User not logged in or display name not available.');
+        console.log('User document not found or username not available.');
       }
     } catch (error) {
-      console.error('Failed to save reply', error);
+      console.error('Failed to save recording:', error);
     }
   };
+  
+  
 
   const backHome = () => {
     navigation.navigate('Home');
@@ -250,6 +310,26 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 10,
   },
+
+    recordingUsername: {
+    fontSize: 16,
+    marginBottom: 10,
+    },
+
+    buttonPage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    },
+
+    button: {
+    padding: 10,
+    backgroundColor: '#eee',
+    borderRadius: 5,
+    },
+
+
  
 });
 
