@@ -58,6 +58,7 @@ const RecordingsList = ({ recordings }) => {
   
       const { durationMillis } = await sound.getStatusAsync();
       const durationSeconds = Math.floor(durationMillis / 1000);
+      console.log('Sound duration:', durationSeconds);
   
       sound.setOnPlaybackStatusUpdate((playbackStatus) => {
         if (playbackStatus.didJustFinish) {
@@ -102,11 +103,30 @@ const RecordingsList = ({ recordings }) => {
   };
   };
 
+  useEffect(() => {
+    if (recordings.length > 0) {
+      const fetchRecordingLengths = async () => {
+        const lengths = {};
 
+        for (const recording of recordings) {
+          try {
+            const { sound } = await Audio.Sound.createAsync({ uri: recording.downloadURL });
+            const { durationMillis } = await sound.getStatusAsync();
+            const durationSeconds = Math.floor(durationMillis / 1000);
+            lengths[recording.downloadURL] = durationSeconds;
+          } catch (error) {
+            console.log('Error while fetching recording length:', error);
+          }
+        }
+
+        setRecordingLengths(lengths);
+      };
+
+      fetchRecordingLengths();
+    }
+  }, [recordings]);
 
   const renderRecording = useMemo(() => {
-
-    
     return ({ item }) => (
       <TouchableOpacity
         style={styles.recordingContainer}
@@ -114,18 +134,25 @@ const RecordingsList = ({ recordings }) => {
       >
         <Text style={styles.recordingTag}>{item.tag}</Text>
         <Text style={styles.recordingUsername}>{item.username}</Text>
-        <Text style={styles.recordingLength}>{recordingLengths[item.downloadURL]} seconds</Text>
-        
-        
+        <Text style={styles.recordingLength}>
+          {recordingLengths[item.downloadURL] || ''} sec
+        </Text>
         <TouchableOpacity
-      style={styles.replyButtonContainer}
-      onPress={() => navigation.navigate('RecordingDetails', { recordingId: item.id })}
-    >
-      <FontAwesome name="reply" size={10} color="lightblue" style={{ bottom: 0, right: 0 }} />
-    </TouchableOpacity>
+          style={styles.replyButtonContainer}
+          onPress={() =>
+            navigation.navigate('RecordingDetails', { recordingId: item.id })
+          }
+        >
+          <FontAwesome
+            name="reply"
+            size={10}
+            color="lightblue"
+            style={{ bottom: 0, right: 0 }}
+          />
+        </TouchableOpacity>
       </TouchableOpacity>
     );
-  }, []);
+  }, [recordingLengths]);
   
   
 
@@ -217,6 +244,7 @@ const subscribeToRecordings = () => {
           </Text>
           <VoiceButton addRecording={addRecording} />
           <RecordingsList recordings={recordings} recordingLengths={recordingLengths} />
+          
           <View style={styles.buttonContainer}>
             <Button title="Sign Out" onPress={handleSignOut} />
           </View>
@@ -285,7 +313,7 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   recordingLength: {
-    fontSize: 12,
+    fontSize: 9,
     color: 'gray',
   },
   title: {

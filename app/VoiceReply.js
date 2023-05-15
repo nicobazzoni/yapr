@@ -47,6 +47,10 @@ const VoiceReply = ({ recordingId }) => {
   const saveReply = async () => {
     try {
       console.log('Saving reply...');
+      if (!recording) {
+        console.log('No recording available');
+        return;
+      }
 
       const uri = recording.getURI();
       const response = await fetch(uri);

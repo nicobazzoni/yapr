@@ -11,23 +11,23 @@ import RecordingDetailsScreen from './RecordingDetailsScreen';
 const Stack = createStackNavigator();
 
 export default function App() {
-  useEffect(() => {
-    async function configureAudioSession() {
-      try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-          interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_MIX_WITH_OTHERS,
-          shouldDuckAndroid: true,
-          interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS,
-        });
-      } catch (error) {
-        console.error('Failed to configure audio session', error);
-      }
-    }
-
-    configureAudioSession();
-  }, []);
+  // const configureAudioSession = async () => {
+  //   try {
+  //     await Audio.setAudioModeAsync({
+  //       allowsRecordingIOS: true,
+  //       playsInSilentModeIOS: true,
+  //       interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_MIX_WITH_OTHERS,
+  //       shouldDuckAndroid: true,
+  //       interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS,
+  //     });
+  //   } catch (error) {
+  //     console.error('Failed to configure audio session', error);
+  //   }
+  // };
+  
+  // useEffect(() => {
+  //   configureAudioSession();
+  // }, []);
 
   return (
     <NavigationContainer independent={true} screenOptions={{ headerShown: false, headerTitle: null }}>
